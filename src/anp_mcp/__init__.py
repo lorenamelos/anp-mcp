@@ -1,2 +1,1 @@
-def main() -> None:
-    print("Hello from anp-mcp!")
+"""anp-mcp: an MCP server for ANP oil production data."""
