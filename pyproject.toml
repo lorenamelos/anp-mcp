@@ -1,0 +1,20 @@
+[project]
+name = "anp-mcp"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Lorena Melo", email = "lorenamelo.engr@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "duckdb>=2.0.0",
+    "mcp>=2.3.0",
+]
+
+[project.scripts]
+anp-mcp = "anp_mcp.server:main"
+
+[build-system]
+requires = ["uv_build>=0.12.13,<0.13.0"]
+build-backend = "uv_build"
