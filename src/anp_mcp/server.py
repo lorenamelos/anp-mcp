@@ -4,12 +4,11 @@ import os
 from pathlib import Path
 
 import duckdb
+from huggingface_hub import hf_hub_download
 from mcp.server import MCPServer
 
-from huggingface_hub import hf_hub_download
-
-# Folder with the dataset files. Today: a local copy of the pipeline's outputs.
-# Later: the published open dataset (only this setting changes).
+# Open dataset on the Hugging Face Hub, pinned to one version so answers do not change
+# silently when a new month is published.
 DATASET_REPO = os.environ.get("ANP_MCP_DATASET", "lorenamelos/anp-oil-production")
 DATASET_REVISION = os.environ.get("ANP_MCP_REVISION", "v2026.09")
 LOCAL_DIR = os.environ.get("ANP_MCP_DATA_DIR")  # optional: read local files (development)
@@ -22,6 +21,7 @@ def data_file(name: str) -> str:
     return hf_hub_download(
         repo_id=DATASET_REPO, filename=name, repo_type="dataset", revision=DATASET_REVISION
     )
+
 
 mcp = MCPServer("anp-mcp")
 

@@ -6,7 +6,9 @@ from 2005 to today.
 
 ANP publishes production per well, but not through an API: files change format
 over time, wells and contracts get renamed, and the online query is behind a captcha.
-This server works on a cleaned, harmonised snapshot of that data, so you can simply ask:
+This server works on a cleaned, harmonised snapshot of that data, published as an
+[open dataset on Hugging Face](https://huggingface.co/datasets/lorenamelos/anp-oil-production),
+so you can simply ask:
 
 > *"Which oil fields grew and declined the most in the last 6 months?"*
 
@@ -39,32 +41,47 @@ changes a name.
 ## How it works
 
 ```text
-ANP raw files  ->  harmonisation pipeline  ->  open dataset (Parquet snapshot)
-                                                     |
+ANP raw files  ->  harmonisation pipeline  ->  open dataset (Hugging Face, versioned)
+                                                     |  downloaded once, then cached
                      your AI assistant  <-  anp-mcp (DuckDB, runs on your machine)
 ```
 
-The server reads the dataset with DuckDB: no database to install, nothing sent to
-any third-party server. Units: petroleum = oil + condensate, daily rate (bbl/d).
+On first use the server downloads the two small files it needs from the
+[dataset](https://huggingface.co/datasets/lorenamelos/anp-oil-production) and caches them;
+after that it works offline. It is pinned to one dataset version, so answers do not
+change silently when a new month is published. No database to install, no account
+needed, and your questions are not sent anywhere except to your own AI assistant.
+Units: petroleum = oil + condensate, daily rate (bbl/d).
 
 ## Install
 
-> The open dataset is being published. Until then, `ANP_MCP_DATA_DIR` must point to
-> a local copy of the dataset files.
+Requires [uv](https://docs.astral.sh/uv/).
 
-Add to your MCP client configuration (e.g. `claude_desktop_config.json`):
+```bash
+git clone https://github.com/lorenamelos/anp-mcp.git
+```
+
+Add to your MCP client configuration (e.g. `claude_desktop_config.json` in Claude Desktop),
+then restart the client:
 
 ```json
 {
   "mcpServers": {
     "anp-mcp": {
       "command": "uv",
-      "args": ["--directory", "/path/to/anp-mcp", "run", "anp-mcp"],
-      "env": { "ANP_MCP_DATA_DIR": "/path/to/dataset" }
+      "args": ["--directory", "/path/to/anp-mcp", "run", "anp-mcp"]
     }
   }
 }
 ```
+
+Optional environment variables:
+
+| Variable | Default | Use |
+|---|---|---|
+| `ANP_MCP_REVISION` | `v2026.09` | Dataset version to read |
+| `ANP_MCP_DATASET` | `lorenamelos/anp-oil-production` | Dataset repository |
+| `ANP_MCP_DATA_DIR` | not set | Read the dataset files from a local folder instead |
 
 ## Limitations
 
@@ -76,7 +93,8 @@ Add to your MCP client configuration (e.g. `claude_desktop_config.json`):
 
 ## Data and licence
 
-Data: Agência Nacional do Petróleo, Gás Natural e Biocombustíveis (ANP), public data.
-This is an independent project, not affiliated with ANP. Code: MIT.
+Data: Agência Nacional do Petróleo, Gás Natural e Biocombustíveis (ANP), open data,
+harmonised in the [anp-oil-production](https://huggingface.co/datasets/lorenamelos/anp-oil-production)
+dataset (CC BY 4.0). This is an independent project, not affiliated with ANP. Code: MIT.
 
 Built by [Lorena Melo](https://www.linkedin.com/in/lorenameloengr/).
