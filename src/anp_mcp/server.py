@@ -6,28 +6,38 @@ from pathlib import Path
 import duckdb
 from mcp.server import MCPServer
 
+from huggingface_hub import hf_hub_download
+
 # Folder with the dataset files. Today: a local copy of the pipeline's outputs.
 # Later: the published open dataset (only this setting changes).
-DATA_DIR = Path(os.environ.get("ANP_MCP_DATA_DIR", ".")).expanduser()
+DATASET_REPO = os.environ.get("ANP_MCP_DATASET", "lorenamelos/anp-oil-production")
+DATASET_REVISION = os.environ.get("ANP_MCP_REVISION", "v2026.09")
+LOCAL_DIR = os.environ.get("ANP_MCP_DATA_DIR")  # optional: read local files (development)
+
+
+def data_file(name: str) -> str:
+    """Path of a dataset file: local if ANP_MCP_DATA_DIR is set, else downloaded once from the Hub and cached."""
+    if LOCAL_DIR:
+        return str(Path(LOCAL_DIR).expanduser() / name)
+    return hf_hub_download(
+        repo_id=DATASET_REPO, filename=name, repo_type="dataset", revision=DATASET_REVISION
+    )
 
 mcp = MCPServer("anp-mcp")
 
 
-def connect() -> duckdb.DuckDBPyConnection:
-    """Open an in-memory DuckDB with one view per dataset file."""
+def connect():
     con = duckdb.connect()
-    con.execute(
-        f"""
+    con.execute(f"""
         CREATE VIEW field_group_month AS
         SELECT field_group, CAST(period AS DATE) AS period, petroleum_bpd, active_wells
-        FROM read_parquet('{DATA_DIR / "field_group_month.parquet"}');
-
+        FROM read_parquet('{data_file("field_group_month.parquet")}')
+    """)
+    con.execute(f"""
         CREATE VIEW national_check AS
-        SELECT CAST(period AS DATE) AS period, national_total, wells_total,
-               rel_diff_total, flag
-        FROM read_csv_auto('{DATA_DIR / "national_vs_fields.csv"}');
-        """
-    )
+        SELECT period, national_total, wells_total, rel_diff_total, flag
+        FROM read_csv_auto('{data_file("national_check.csv")}')
+    """)
     return con
 
 
