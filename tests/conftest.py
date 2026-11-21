@@ -29,6 +29,12 @@ SERIES = {
     "PEQUENO": [50_000] * 9 + [900] * 6 + [500] * 6,
 }
 
+# field -> field group, as in the dataset's field_groups.csv
+FIELD_GROUPS = [(g, g, False, "") for g in SERIES] + [
+    ("LULA", "TUPI", True, "Renamed LULA -> TUPI in 2020-07 (synthetic)."),
+    ("ANC_TUPI", "TUPI", True, "Renamed LULA -> TUPI in 2020-07 (synthetic)."),
+]
+
 NATIONAL = [
     # period, national_total, wells_total, rel_diff_total, flag
     ("2026-06-01", 1000.0, 1005.2, 0.0052, False),
@@ -60,7 +66,17 @@ def server(tmp_path, monkeypatch):
         "rel_diff_total DOUBLE, flag BOOLEAN)"
     )
     con.executemany("INSERT INTO nat VALUES (?, ?, ?, ?, ?)", NATIONAL)
-    con.execute(f"COPY nat TO '{tmp_path / 'national_check.csv'}' (HEADER)")
+    # onshore 10% and offshore 90% of the national total
+    con.execute(f"""
+        COPY (SELECT period, national_total * 0.1 AS national_terra,
+                     national_total * 0.9 AS national_mar, national_total,
+                     wells_total, rel_diff_total, flag FROM nat)
+        TO '{tmp_path / 'national_check.csv'}' (HEADER)
+    """)
+
+    con.execute("CREATE TABLE fg (field VARCHAR, field_group VARCHAR, grouped BOOLEAN, reason VARCHAR)")
+    con.executemany("INSERT INTO fg VALUES (?, ?, ?, ?)", FIELD_GROUPS)
+    con.execute(f"COPY fg TO '{tmp_path / 'field_groups.csv'}' (HEADER)")
     con.close()
 
     monkeypatch.setenv("ANP_MCP_DATA_DIR", str(tmp_path))

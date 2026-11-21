@@ -1,4 +1,4 @@
-"""Tests for the four tools, called as plain Python functions."""
+"""Tests for the tools, called as plain Python functions."""
 
 import pytest
 
@@ -26,6 +26,26 @@ def test_search_orders_by_latest_production_and_respects_limit(server):
 
 def test_search_no_match(server):
     assert server.search_field_groups("xyz")["matches"] == []
+
+
+def test_search_finds_a_field_inside_a_group(server):
+    result = server.search_field_groups("lula")
+    assert names(result, "matches") == ["TUPI"]
+    match = result["matches"][0]
+    assert match["matched_fields"] == ["LULA"]
+    assert "Renamed LULA -> TUPI" in match["grouping_reason"]
+
+
+def test_search_by_group_name_lists_matching_member_fields(server):
+    match = server.search_field_groups("tupi")["matches"][0]
+    assert match["field_group"] == "TUPI"
+    assert match["matched_fields"] == ["ANC_TUPI"]  # the group's own name is not repeated
+
+
+def test_search_ungrouped_field_has_no_reason(server):
+    match = server.search_field_groups("mero")["matches"][0]
+    assert match["matched_fields"] == []
+    assert match["grouping_reason"] is None
 
 
 # field_group_production
@@ -117,6 +137,12 @@ def test_reconciliation_summary_only_by_default(server):
     }
 
 
+def test_reconciliation_states_scope_and_provenance(server):
+    result = server.national_reconciliation()
+    assert "not an audit" in result["what_it_does_not_show"]
+    assert "not an official" in result["provenance"]
+
+
 def test_reconciliation_details(server):
     result = server.national_reconciliation(details=True)
     assert "summary" in result
@@ -126,3 +152,26 @@ def test_reconciliation_details(server):
         {"month": "2026-08", "gap_pct": -2.05, "outside_1pct": True},
         {"month": "2026-09", "gap_pct": -0.3, "outside_1pct": False},
     ]
+
+
+# national_production
+
+
+def test_national_monthly(server):
+    result = server.national_production(start="2026-07", end="2026-08")
+    assert result["months"] == [
+        {"month": "2026-07", "petroleum_bpd": 1000, "onshore_bpd": 100, "offshore_bpd": 900},
+        {"month": "2026-08", "petroleum_bpd": 1000, "onshore_bpd": 100, "offshore_bpd": 900},
+    ]
+
+
+def test_national_yearly_flags_incomplete_year(server):
+    result = server.national_production(frequency="year")
+    assert result["years"] == [
+        {"year": 2026, "months_available": 4, "complete_year": False,
+         "petroleum_bpd": 1000, "onshore_bpd": 100, "offshore_bpd": 900},
+    ]
+
+
+def test_server_declares_its_scope(server):
+    assert "Not covered: forecasts, royalties, natural gas" in server.INSTRUCTIONS

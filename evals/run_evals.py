@@ -15,6 +15,7 @@ Needs ANTHROPIC_API_KEY in .env (never committed). Results: evals/results/<run>.
 import argparse
 import asyncio
 import json
+import logging
 import os
 import sys
 import time
@@ -28,6 +29,8 @@ from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
 from evals.ground_truth import compute
+
+logging.getLogger("httpx").setLevel(logging.WARNING)  # no per-request log lines
 
 HERE = Path(__file__).parent
 REPO_ROOT = HERE.parent
@@ -102,13 +105,13 @@ def result_text(result) -> str:
     return "\n".join(parts) or json.dumps(result.structured_content or {})
 
 
-async def ask(client, session, tools, model, question, costs) -> dict:
+async def ask(client, session, tools, model, system, question, costs) -> dict:
     """One conversation: question -> tool calls -> final answer."""
     messages = [{"role": "user", "content": question}]
     calls, usd, start = [], 0.0, time.monotonic()
     for _ in range(MAX_TURNS):
         resp = await client.messages.create(
-            model=model, max_tokens=2048, system=SYSTEM, tools=tools, messages=messages
+            model=model, max_tokens=2048, system=system, tools=tools, messages=messages
         )
         usd += costs.add(model, resp.usage)
         messages.append({"role": "assistant", "content": resp.content})
@@ -177,7 +180,14 @@ async def main(args) -> None:
         cwd=str(REPO_ROOT),
     )
     async with stdio_client(server) as (read, write), ClientSession(read, write) as session:
-        await session.initialize()
+        init = await session.initialize()
+        # Like desktop clients, pass the server's own instructions (if any) to the model.
+        # A server that sends none (the baseline) gets exactly the old system prompt.
+        server_instructions = getattr(init, "instructions", None) or ""
+        system = SYSTEM
+        if server_instructions:
+            system += f"\n\n<server_instructions name=\"anp-mcp\">\n{server_instructions}\n</server_instructions>"
+        print(f"Server instructions: {'yes' if server_instructions else 'none'}")
         listed = await session.list_tools()
         tools = [{"name": t.name, "description": t.description or "",
                   "input_schema": t.input_schema} for t in listed.tools]
@@ -190,7 +200,7 @@ async def main(args) -> None:
                     if costs.total >= args.max_usd:
                         print(f"Stopped: budget of ${args.max_usd:.2f} reached.")
                         break
-                    run = await ask(client, session, tools, args.model, case["question"], costs)
+                    run = await ask(client, session, tools, args.model, system, case["question"], costs)
                     verdict = await grade(client, args.judge_model, case, rubric, run, costs)
                     called = {c["name"] for c in run["calls"]}
                     tool_ok = not case["expect_tools"] or bool(called & set(case["expect_tools"]))
@@ -199,6 +209,8 @@ async def main(args) -> None:
                         "run_id": run_id, "case": case["id"], "category": case["category"],
                         "repeat": rep, "model": args.model, "judge_model": args.judge_model,
                         "dataset_revision": truth["dataset_revision"],
+                        "server_instructions": bool(server_instructions),
+                        "tools_available": [t["name"] for t in tools],
                         "question": case["question"], "rubric": rubric, **run,
                         "tool_ok": tool_ok, **verdict, "passed": passed,
                     }
