@@ -12,3 +12,6 @@ wheels/
 # Secrets and eval outputs
 .env
 evals/results/
+
+# macOS
+.DS_Store
