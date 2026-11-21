@@ -60,10 +60,10 @@ def server(tmp_path, monkeypatch):
         "rel_diff_total DOUBLE, flag BOOLEAN)"
     )
     con.executemany("INSERT INTO nat VALUES (?, ?, ?, ?, ?)", NATIONAL)
-    con.execute(f"COPY nat TO '{tmp_path / 'national_vs_fields.csv'}' (HEADER)")
+    con.execute(f"COPY nat TO '{tmp_path / 'national_check.csv'}' (HEADER)")
     con.close()
 
     monkeypatch.setenv("ANP_MCP_DATA_DIR", str(tmp_path))
     from anp_mcp import server
 
-    return importlib.reload(server)  # DATA_DIR is read at import time
+    return importlib.reload(server)  # LOCAL_DIR (ANP_MCP_DATA_DIR) is read at import time
