@@ -36,7 +36,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)  # no per-request log lines
 
 HERE = Path(__file__).parent
 REPO_ROOT = HERE.parent
-INSTRUMENT = "v2"  # bump when the way answers are checked changes; compare runs only within one
+INSTRUMENT = "v3"  # bump when the way answers are checked changes; compare runs only within one
 MAX_TURNS = 8  # tool-use rounds per question before giving up
 RESULT_LIMIT = 6000  # characters of each tool result kept for the grader and the log
 SYSTEM = (
@@ -70,17 +70,21 @@ Rubric (what a correct answer must do): {rubric}
 Tool calls the assistant made (name, arguments, start of the result):
 {trace}
 
+Server instructions (also a valid source for statements):
+{instructions}
+
 Assistant's final answer:
 {answer}
 
 Grade strictly against the rubric. Numbers may be rounded or formatted differently
 (e.g. "1,2 milhão" = 1,200,000) but must be within the stated tolerance.
 
-Grounding: every figure the answer presents as data must be supported by the tool results
-above, directly or by simple arithmetic on them (unit conversion, sums, averages, changes).
-A figure or fact that is not in the tool results is acceptable only if the answer explicitly
-says it comes from the assistant's own knowledge. An unsupported figure presented as data
-fails the answer (error_type "ungrounded"), even if the rubric is otherwise met.
+Grounding: every figure or fact the answer presents as data must be supported by the tool
+results or the server instructions above, directly or by simple arithmetic on them (unit
+conversion, sums, averages, changes). A figure or fact found in neither is acceptable only if
+the answer explicitly says it comes from the assistant's own knowledge. An unsupported figure
+presented as data fails the answer (error_type "ungrounded"), even if the rubric is otherwise
+met.
 You must answer by calling the grade tool, with no other text."""
 
 
@@ -154,7 +158,7 @@ async def ask(client, session, tools, model, system, question, costs) -> dict:
             "seconds": round(time.monotonic() - start, 1)}
 
 
-async def grade(client, judge_model, case, rubric, run, costs) -> dict:
+async def grade(client, judge_model, case, rubric, run, costs, instructions) -> dict:
     trace = "\n".join(
         f"- {c['name']}({json.dumps(c['args'], ensure_ascii=False)}) -> {c['result']}"
         for c in run["calls"]
@@ -164,7 +168,8 @@ async def grade(client, judge_model, case, rubric, run, costs) -> dict:
         # the prompt asks for it and a missing call counts as a grading error.
         model=judge_model, max_tokens=1024, tools=[GRADE_TOOL],
         messages=[{"role": "user", "content": GRADER_PROMPT.format(
-            question=case["question"], rubric=rubric, trace=trace, answer=run["answer"])}],
+            question=case["question"], rubric=rubric, trace=trace,
+            instructions=instructions or "(none)", answer=run["answer"])}],
     )
     usd = costs.add(judge_model, resp.usage)
     verdict = next((b.input for b in resp.content if b.type == "tool_use"), None)
@@ -244,7 +249,8 @@ async def main(args) -> None:
                         print(f"Stopped: budget of ${args.max_usd:.2f} reached.")
                         break
                     run = await ask(client, session, tools, args.model, system, case["question"], costs)
-                    verdict = await grade(client, args.judge_model, case, rubric, run, costs)
+                    verdict = await grade(client, args.judge_model, case, rubric, run, costs,
+                                          server_instructions)
                     called = {c["name"] for c in run["calls"]}
                     # A data question must be answered from some tool (any tool: a better tool
                     # added later must not fail the check). Which tool is information only.
