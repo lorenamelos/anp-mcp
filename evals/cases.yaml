@@ -26,7 +26,7 @@
 - id: q04
   category: lookup
   question: "Qual o mês mais recente com dados de produção?"
-  expect_tools: [field_group_production, top_changes, search_field_groups, national_reconciliation]
+  expect_tools: [field_group_production, top_changes, search_field_groups, national_reconciliation, national_production]
   rubric: "Says the latest month with data is {latest_month}. Mentioning that ANP publishes with a delay is a plus, not required."
 
 - id: q05

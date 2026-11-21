@@ -8,6 +8,7 @@ rubric filled with ground_truth.py. Every API call's tokens and cost are recorde
     uv run python -m evals.run_evals                      # all cases, 3 repeats, Sonnet
     uv run python -m evals.run_evals --cases q05 q21 -r 1 # a few cases, once
     uv run python -m evals.run_evals --model claude-haiku-5-5
+    uv run python -m evals.run_evals --server-dir ../anp-mcp-baseline --label before
 
 Needs ANTHROPIC_API_KEY in .env (never committed). Results: evals/results/<run>.jsonl
 """
@@ -17,6 +18,7 @@ import asyncio
 import json
 import logging
 import os
+import subprocess
 import sys
 import time
 from datetime import UTC, datetime
@@ -34,7 +36,9 @@ logging.getLogger("httpx").setLevel(logging.WARNING)  # no per-request log lines
 
 HERE = Path(__file__).parent
 REPO_ROOT = HERE.parent
+INSTRUMENT = "v2"  # bump when the way answers are checked changes; compare runs only within one
 MAX_TURNS = 8  # tool-use rounds per question before giving up
+RESULT_LIMIT = 6000  # characters of each tool result kept for the grader and the log
 SYSTEM = (
     "You are a helpful assistant. You have tools for Brazilian oil production data "
     "(ANP). Use them when they are relevant to the question."
@@ -50,7 +54,7 @@ GRADE_TOOL = {
             "error_type": {
                 "type": "string",
                 "enum": ["none", "wrong_number", "wrong_unit", "wrong_entity", "invented",
-                         "missed_limit", "incomplete", "other"],
+                         "ungrounded", "missed_limit", "incomplete", "other"],
             },
         },
         "required": ["passed", "reason", "error_type"],
@@ -70,6 +74,12 @@ Assistant's final answer:
 
 Grade strictly against the rubric. Numbers may be rounded or formatted differently
 (e.g. "1,2 milhão" = 1,200,000) but must be within the stated tolerance.
+
+Grounding: every figure the answer presents as data must be supported by the tool results
+above, directly or by simple arithmetic on them (unit conversion, sums, averages, changes).
+A figure or fact that is not in the tool results is acceptable only if the answer explicitly
+says it comes from the assistant's own knowledge. An unsupported figure presented as data
+fails the answer (error_type "ungrounded"), even if the rubric is otherwise met.
 You must answer by calling the grade tool, with no other text."""
 
 
@@ -109,11 +119,20 @@ async def ask(client, session, tools, model, system, question, costs) -> dict:
     """One conversation: question -> tool calls -> final answer."""
     messages = [{"role": "user", "content": question}]
     calls, usd, start = [], 0.0, time.monotonic()
+    tokens = {"input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0, "cache_write_tokens": 0}
     for _ in range(MAX_TURNS):
         resp = await client.messages.create(
-            model=model, max_tokens=2048, system=system, tools=tools, messages=messages
+            model=model, max_tokens=2048, tools=tools, messages=messages,
+            # Tools + system are the same in every call: cache them (cache reads are billed
+            # at a fraction of the input price). The breakpoint covers everything before it.
+            system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
         )
         usd += costs.add(model, resp.usage)
+        u = resp.usage
+        tokens["input_tokens"] += u.input_tokens or 0
+        tokens["output_tokens"] += u.output_tokens or 0
+        tokens["cache_read_tokens"] += getattr(u, "cache_read_input_tokens", 0) or 0
+        tokens["cache_write_tokens"] += getattr(u, "cache_creation_input_tokens", 0) or 0
         messages.append({"role": "assistant", "content": resp.content})
         uses = [b for b in resp.content if b.type == "tool_use"]
         if not uses:
@@ -123,20 +142,20 @@ async def ask(client, session, tools, model, system, question, costs) -> dict:
         for u in uses:
             res = await session.call_tool(u.name, u.input)
             text = result_text(res)
-            calls.append({"name": u.name, "args": u.input, "result": text[:500],
+            calls.append({"name": u.name, "args": u.input, "result": text[:RESULT_LIMIT],
                           "is_error": bool(res.is_error)})
             results.append({"type": "tool_result", "tool_use_id": u.id, "content": text,
                             "is_error": bool(res.is_error)})
         messages.append({"role": "user", "content": results})
     else:
         answer = "(no final answer: tool-use turn limit reached)"
-    return {"answer": answer, "calls": calls, "solver_usd": usd,
+    return {"answer": answer, "calls": calls, "solver_usd": usd, **tokens,
             "seconds": round(time.monotonic() - start, 1)}
 
 
 async def grade(client, judge_model, case, rubric, run, costs) -> dict:
     trace = "\n".join(
-        f"- {c['name']}({json.dumps(c['args'], ensure_ascii=False)}) -> {c['result'][:300]}"
+        f"- {c['name']}({json.dumps(c['args'], ensure_ascii=False)}) -> {c['result']}"
         for c in run["calls"]
     ) or "(no tool calls)"
     resp = await client.messages.create(
@@ -170,15 +189,25 @@ async def main(args) -> None:
     costs = Costs(pricing)
     client = AsyncAnthropic()
 
-    run_id = f"{datetime.now(UTC):%Y%m%dT%H%M%SZ}_{args.model}"
+    server_dir = Path(args.server_dir).resolve() if args.server_dir else REPO_ROOT
+    server_commit = subprocess.run(
+        ["git", "-C", str(server_dir), "rev-parse", "--short", "HEAD"],
+        capture_output=True, text=True,
+    ).stdout.strip() or "unknown"
+    label = f"_{args.label}" if args.label else ""
+    run_id = f"{datetime.now(UTC):%Y%m%dT%H%M%SZ}_{args.model}{label}"
     out = HERE / "results" / f"{run_id}.jsonl"
     out.parent.mkdir(exist_ok=True)
 
     # The server runs as a child process, exactly as Claude Desktop would start it.
+    # --server-dir runs another checkout of the server (e.g. an older commit, through
+    # `git worktree`) with this environment's packages; its src/ comes first on the path.
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(server_dir / "src"), env.get("PYTHONPATH")]))
     server = StdioServerParameters(
-        command=sys.executable, args=["-m", "anp_mcp.server"], env=dict(os.environ),
-        cwd=str(REPO_ROOT),
+        command=sys.executable, args=["-m", "anp_mcp.server"], env=env, cwd=str(server_dir),
     )
+    print(f"Server: {server_dir} @ {server_commit}   Instrument: {INSTRUMENT}")
     async with stdio_client(server) as (read, write), ClientSession(read, write) as session:
         init = await session.initialize()
         # Like desktop clients, pass the server's own instructions (if any) to the model.
@@ -203,16 +232,21 @@ async def main(args) -> None:
                     run = await ask(client, session, tools, args.model, system, case["question"], costs)
                     verdict = await grade(client, args.judge_model, case, rubric, run, costs)
                     called = {c["name"] for c in run["calls"]}
-                    tool_ok = not case["expect_tools"] or bool(called & set(case["expect_tools"]))
+                    # A data question must be answered from some tool (any tool: a better tool
+                    # added later must not fail the check). Which tool is information only.
+                    tool_ok = not case["expect_tools"] or bool(called)
+                    unexpected = sorted(called - set(case["expect_tools"])) if case["expect_tools"] else []
                     passed = verdict["passed"] and tool_ok
                     record = {
-                        "run_id": run_id, "case": case["id"], "category": case["category"],
+                        "run_id": run_id, "instrument": INSTRUMENT, "server_commit": server_commit,
+                        "label": args.label or "", "case": case["id"], "category": case["category"],
                         "repeat": rep, "model": args.model, "judge_model": args.judge_model,
                         "dataset_revision": truth["dataset_revision"],
                         "server_instructions": bool(server_instructions),
                         "tools_available": [t["name"] for t in tools],
                         "question": case["question"], "rubric": rubric, **run,
-                        "tool_ok": tool_ok, **verdict, "passed": passed,
+                        "tool_ok": tool_ok, "unexpected_tools": unexpected, **verdict,
+                        "grader_passed": verdict["passed"], "passed": passed,
                     }
                     f.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
                     mark = "PASS" if passed else "FAIL"
@@ -231,4 +265,6 @@ if __name__ == "__main__":
     parser.add_argument("-r", "--repeats", type=int, default=3)
     parser.add_argument("--cases", nargs="*", help="case ids, e.g. q01 q05")
     parser.add_argument("--max-usd", type=float, default=2.0, help="stop the run at this cost")
+    parser.add_argument("--server-dir", help="run the server from another checkout (default: this repo)")
+    parser.add_argument("--label", help="tag added to the run name, e.g. before / after")
     asyncio.run(main(parser.parse_args()))
