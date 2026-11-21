@@ -60,6 +60,7 @@ GRADE_TOOL = {
         "required": ["passed", "reason", "error_type"],
     },
 }
+ERROR_TYPES = GRADE_TOOL["input_schema"]["properties"]["error_type"]["enum"]
 GRADER_PROMPT = """You grade answers from an assistant that uses data tools.
 
 Question: {question}
@@ -171,6 +172,19 @@ async def grade(client, judge_model, case, rubric, run, costs) -> dict:
         text = " ".join(b.text for b in resp.content if b.type == "text")
         verdict = {"passed": False, "reason": f"GRADER DID NOT CALL grade: {text[:200]}",
                    "error_type": "other"}
+    # The tool call is not forced, so a field can be missing: fill it instead of crashing.
+    # The schema is not enforced either: "false" as a string must not pass, and an
+    # error_type outside the enum becomes "other".
+    passed = verdict.get("passed", False)
+    passed = passed.strip().lower() == "true" if isinstance(passed, str) else bool(passed)
+    error_type = verdict.get("error_type") or ("none" if passed else "other")
+    if error_type not in ERROR_TYPES:
+        error_type = "other"
+    verdict = {
+        "passed": passed,
+        "reason": str(verdict.get("reason", "(grader gave no reason)")),
+        "error_type": error_type,
+    }
     return {**verdict, "judge_usd": usd}
 
 
@@ -249,6 +263,7 @@ async def main(args) -> None:
                         "grader_passed": verdict["passed"], "passed": passed,
                     }
                     f.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+                    f.flush()  # a crash later keeps every answer graded so far
                     mark = "PASS" if passed else "FAIL"
                     print(f"{case['id']} r{rep} {mark:4} {verdict['error_type']:12} "
                           f"${run['solver_usd'] + verdict['judge_usd']:.4f}  {verdict['reason'][:90]}")
