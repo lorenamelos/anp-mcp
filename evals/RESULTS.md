@@ -1,6 +1,37 @@
-# Eval baseline (before tool improvements)
+# Eval results
 
-Run `20261121T141647Z_claude-sonnet-5-5` (raw records in `baseline/`, one JSON per answer).
+Raw records of every run are in `runs/` (one JSON per answer). Each section below is one
+version of the eval instrument; numbers are only compared within the same instrument.
+
+## Instrument v1 (commit 89c4f2e): before and after
+
+| | Before | After |
+|---|---|---|
+| Server | 4 tools, no instructions | 5 tools, server instructions (commit 1d5ff3c) |
+| Run | `20261121T141647Z` | `20261121T193533Z` |
+| Pass rate | **83% (52/63)** | **95% (60/63)** |
+| Cost per answer (solver) | USD 0.018 | USD 0.022 (+20%: instructions and a fifth tool go with every call) |
+
+| Category | Before | After |
+|---|---|---|
+| names and groups | 67% | 100% |
+| trust | 50% | 100% |
+| out of scope | 67% | 100% |
+| tool vs memory | 33% | 100% |
+| lookup | 100% | 75% |
+
+The 3 failures after the change are instrument errors, not model errors: in q04 ("latest
+month") the model used the new `national_production` tool, a valid source, and the grader
+passed the answer, but the mechanical check required one of the four tools listed when the
+case was written. With that list updated the run would be 63/63; reported here as a footnote
+because the fix came after seeing the result.
+
+Two weaknesses of instrument v1, found in these runs, are fixed in v2:
+- The tool check named specific tools, so it failed when a better tool was added.
+- The grader saw only the first 300 characters of each tool result, so it could not check
+  that the numbers in an answer came from the tools.
+
+### Baseline details (before)
 
 | Setting | Value |
 |---|---|
@@ -10,7 +41,7 @@ Run `20261121T141647Z_claude-sonnet-5-5` (raw records in `baseline/`, one JSON p
 | Repeats | 3 per case (63 answers) |
 | Dataset | lorenamelos/anp-oil-production, v2026.09 |
 
-## Result
+#### Result
 
 **83% pass (52/63)**. Cost USD 1.46 in total, USD 0.018 per answer (solver), 7.6 s per answer.
 
@@ -22,7 +53,7 @@ Run `20261121T141647Z_claude-sonnet-5-5` (raw records in `baseline/`, one JSON p
 | trust | 50% |
 | tool vs memory | 33% |
 
-## Failures and causes
+#### Failures and causes
 
 | Case | Pass | What happened | Cause |
 |---|---|---|---|
@@ -35,7 +66,7 @@ Observations:
 - A missing tool also costs money: q21 cost about 6x the average answer (USD 0.11) because the model kept searching.
 - In every failure the answer is fluent and confident; the problem is provenance (where a claim came from), not language.
 
-## Planned improvements (general, not tailored to a case)
+#### Improvements made (general, not tailored to a case)
 
 1. `search_field_groups` also matches the fields inside each group (all 534 fields in `field_groups.csv`) and returns the matched field and the grouping reason from the data.
 2. New tool `national_production`: ANP national total by month or year, onshore and offshore, flagging incomplete years.
