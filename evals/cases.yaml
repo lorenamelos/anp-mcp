@@ -1,0 +1,132 @@
+# Eval cases for anp-mcp.
+# - question: what a user types (Portuguese or English, on purpose).
+# - expect_tools: the answer must come from at least one of these tools ([] = no tool needed).
+# - rubric: what the grader checks. {key} is filled from ground_truth.py, never typed by hand.
+# Expected failures with the current tools are marked "known gap": they stay in the set so
+# the improvement shows up as a score change.
+
+- id: q01
+  category: lookup
+  question: "Quanto Búzios produziu em setembro de 2026?"
+  expect_tools: [field_group_production]
+  rubric: "Gives Búzios petroleum production for 2026-09 within 1% of {buzios_2026_09_bpd:,.0f} bbl/d, stating the unit as barrels per day."
+
+- id: q02
+  category: lookup
+  question: "What was Mero's oil production in January 2025?"
+  expect_tools: [field_group_production]
+  rubric: "Gives Mero production for 2025-01 within 1% of {mero_2025_01_bpd:,.0f} bbl/d, unit barrels per day."
+
+- id: q03
+  category: lookup
+  question: "Quantos poços ativos Tupi tinha no último mês disponível?"
+  expect_tools: [field_group_production]
+  rubric: "Says Tupi had {tupi_latest_active_wells} active wells in {latest_month}, naming that month."
+
+- id: q04
+  category: lookup
+  question: "Qual o mês mais recente com dados de produção?"
+  expect_tools: [field_group_production, top_changes, search_field_groups, national_reconciliation]
+  rubric: "Says the latest month with data is {latest_month}. Mentioning that ANP publishes with a delay is a plus, not required."
+
+- id: q05
+  category: names_and_groups
+  question: "Quanto o campo de Lula produziu em 2025?"
+  expect_tools: [field_group_production]
+  rubric: "Known gap (search does not look inside groups). Correct: the link between Lula and the TUPI group is supported by a tool result (not only by the assistant's own knowledge), and the answer gives the 2025 average of TUPI within 2% of {tupi_2025_mean_bpd:,.0f} bbl/d (or the monthly values). Also correct: clearly says the tools did not find Lula and, if it then uses TUPI from its own knowledge, says so explicitly. Wrong: any number not from the tools, or an unsupported reason for the grouping presented as fact (the data says Lula was renamed to Tupi in 2020)."
+
+- id: q06
+  category: names_and_groups
+  question: "how much does buzios produce?"
+  expect_tools: [search_field_groups, field_group_production]
+  rubric: "Finds BÚZIOS despite missing accent and lower case, and gives its latest production within 1% of {buzios_latest_bpd:,.0f} bbl/d for {latest_month}."
+
+- id: q07
+  category: names_and_groups
+  question: "Como está a produção de Sul de Tupi?"
+  expect_tools: [search_field_groups, field_group_production]
+  rubric: "Known gap. Correct: explains that Sul de Tupi is counted inside the TUPI field group (no separate series) and reports TUPI with that caveat. Also correct: says it found no separate series, without inventing one. Wrong: presents any number as Sul de Tupi on its own."
+
+- id: q08
+  category: ranking
+  question: "Quais os 5 campos que mais cresceram nos últimos 6 meses?"
+  expect_tools: [top_changes]
+  rubric: "Lists, in this order, {top5_up_6m}, and says how growth was measured (average of the last 6 months vs the 6 months before)."
+
+- id: q09
+  category: ranking
+  question: "Which fields declined the most over the last 12 months?"
+  expect_tools: [top_changes]
+  rubric: "Uses a 12-month window. The top 5 are, in this order, {top5_down_12m}."
+
+- id: q10
+  category: ranking
+  question: "Bacalhau cresceu? Quanto?"
+  expect_tools: [top_changes, field_group_production]
+  rubric: "Says yes. If it uses the 6-month window method, the growth is within 2 percentage points of {bacalhau_change_6m_pct:.1f}%. Another clearly stated comparison (e.g. month vs month) is acceptable if its numbers match the tool output."
+
+- id: q11
+  category: time_series
+  question: "Em 2026, quem produziu mais em média: Búzios ou Mero?"
+  expect_tools: [field_group_production]
+  rubric: "Says Búzios, with averages near {buzios_2026_mean_bpd:,.0f} (Búzios) and {mero_2026_mean_bpd:,.0f} (Mero) bbl/d within 2%, and says 2026 data ends in {latest_month}."
+
+- id: q12
+  category: time_series
+  question: "Em que mês Búzios passou de 1 milhão de barris por dia pela primeira vez?"
+  expect_tools: [field_group_production]
+  rubric: "Says {buzios_first_month_above_1m}."
+
+- id: q13
+  category: time_series
+  question: "Qual foi o mês de pico de produção de Tupi?"
+  expect_tools: [field_group_production]
+  rubric: "Says {tupi_peak_month}. Noting that the series includes Lula (renamed to Tupi in 2020) is a plus."
+
+- id: q14
+  category: units
+  question: "Quantos barris Mero produziu no total em agosto de 2026?"
+  expect_tools: [field_group_production]
+  rubric: "Converts the daily rate to a monthly total: about {mero_2026_08_total_bbl:,.0f} barrels (daily rate x 31 days), within 2%. Wrong: giving the daily rate as if it were the monthly total."
+
+- id: q15
+  category: units
+  question: "Quanto Búzios produz em metros cúbicos por dia?"
+  expect_tools: [field_group_production, search_field_groups]
+  rubric: "About {buzios_latest_m3d:,.0f} m³/d (1 bbl = 0.159 m³) for {latest_month}, within 2%."
+
+- id: q16
+  category: trust
+  question: "Posso confiar nesses números?"
+  expect_tools: [national_reconciliation]
+  rubric: "Uses the reconciliation: the sum of wells matches ANP's national total within 1% in {recon_months} of {recon_months} months; worst month {recon_worst_month}. Does not claim more certainty than that (e.g. it is an independent project, not official)."
+
+- id: q17
+  category: trust
+  question: "Qual o pior mês da reconciliação com o total nacional, e qual foi a diferença?"
+  expect_tools: [national_reconciliation]
+  rubric: "Says {recon_worst_month} with a gap of about {recon_worst_gap_pct:+.2f}%."
+
+- id: q18
+  category: out_of_scope
+  question: "Quanto o município de Maricá recebeu de royalties em 2025?"
+  expect_tools: []
+  rubric: "Says the tools do not cover royalties and gives no royalty figure. Wrong: any amount in R$ for Maricá, even with a caveat."
+
+- id: q19
+  category: out_of_scope
+  question: "Qual a produção de gás natural de Mero?"
+  expect_tools: []
+  rubric: "Says the tools only cover petroleum (oil + condensate), not gas, and gives no gas figure. Reporting Mero's petroleum instead, clearly labelled as petroleum, is fine."
+
+- id: q20
+  category: out_of_scope
+  question: "Qual a previsão de produção de Búzios para dezembro de 2026?"
+  expect_tools: []
+  rubric: "Says the tools have no forecast and does not present a forecast as data. Describing the recent trend from real data, clearly labelled as history and not a forecast, is fine. Wrong: a specific predicted number."
+
+- id: q21
+  category: tool_vs_memory
+  question: "Em que ano o Brasil bateu recorde de produção de petróleo?"
+  expect_tools: []
+  rubric: "Known gap (no tool exposes the national series). Correct: says the tools cannot answer this, or answers from general knowledge while clearly saying it did NOT come from the tools. Wrong: a year or volume presented as if it came from the ANP data in the tools. Also wrong: figures from memory that contradict the dataset by more than 5%, even if flagged as memory (dataset annual means: 2023 {national_2023_mean_bpd:,.0f}, 2024 {national_2024_mean_bpd:,.0f}, 2025 {national_2025_mean_bpd:,.0f} bbl/d). For reference, the dataset says: best full year {national_record_full_year}, highest month {national_record_month}, series starts {national_first_month}."
