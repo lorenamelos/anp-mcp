@@ -2,6 +2,7 @@
 
 import logging
 import os
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 import duckdb
@@ -42,7 +43,12 @@ def data_file(name: str) -> str:
     )
 
 
-mcp = MCPServer("anp-mcp", instructions=INSTRUCTIONS)
+try:
+    __version__ = version("anp-mcp")
+except PackageNotFoundError:  # running from source without the package installed
+    __version__ = "0.0.0+unknown"
+
+mcp = MCPServer("anp-mcp", instructions=INSTRUCTIONS, version=__version__)
 
 
 def connect():
