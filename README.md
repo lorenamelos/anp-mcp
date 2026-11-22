@@ -71,12 +71,38 @@ Units: petroleum = oil + condensate, daily rate (bbl/d).
 
 Requires [uv](https://docs.astral.sh/uv/).
 
+### Install without cloning
+
+The server runs straight from GitHub; on the first tool call it downloads the dataset from
+Hugging Face and caches it locally.
+
+**Claude Code**
+
+```sh
+claude mcp add anp-mcp -- uvx --from git+https://github.com/lorenamelos/anp-mcp anp-mcp
+```
+
+**Claude Desktop** (or any MCP client using a JSON config, e.g. `claude_desktop_config.json`),
+then restart the client:
+
+```json
+{
+  "mcpServers": {
+    "anp-mcp": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/lorenamelos/anp-mcp", "anp-mcp"]
+    }
+  }
+}
+```
+
+### From a local clone (for development)
+
 ```bash
 git clone https://github.com/lorenamelos/anp-mcp.git
 ```
 
-Add to your MCP client configuration (e.g. `claude_desktop_config.json` in Claude Desktop),
-then restart the client:
+Point your MCP client at the clone, then restart the client:
 
 ```json
 {
@@ -89,7 +115,7 @@ then restart the client:
 }
 ```
 
-Optional environment variables:
+Optional environment variables (both install modes):
 
 | Variable | Default | Use |
 |---|---|---|
