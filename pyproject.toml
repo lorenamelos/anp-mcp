@@ -23,7 +23,9 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "anthropic>=2.12.0",
+    "kaleido>=1.5.2",
     "pandas>=3.1.1",
+    "plotly>=7.1.0",
     "pytest>=9.2.0",
     "python-dotenv>=1.2.4",
     "pyyaml>=6.0.3",

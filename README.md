@@ -25,6 +25,19 @@ every one of the 261 months** from January 2005 to September 2026 (worst month:
 +0.52%, March 2008). The server exposes this check as a tool, so the assistant can
 show it whenever it answers.
 
+## Evals: does it answer correctly?
+
+![Eval results: pass rate before and after the server changes, and Sonnet vs Haiku](evals/evals_chart.png)
+
+21 questions with answers computed from the dataset, each asked 3 times, scored by a grader
+that also checks where every figure came from. The server changes added 12 points under
+both graders, and no answer from the improved server was failed for invented data. Claude
+Haiku 5.5 passes 87% at 1/21 of the cost per answer of Claude Sonnet 5.5. Details:
+[evals/RESULTS.md](evals/RESULTS.md).
+
+Read-only by design: tools run fixed, parameterised queries; no tool can write files or run
+arbitrary SQL.
+
 ## Tools
 
 | Tool | What it answers |
