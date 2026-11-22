@@ -79,7 +79,7 @@ Hugging Face and caches it locally.
 **Claude Code**
 
 ```sh
-claude mcp add anp-mcp -- uvx --from git+https://github.com/lorenamelos/anp-mcp anp-mcp
+claude mcp add anp-mcp -- uvx --from git+https://github.com/lorenamelos/anp-mcp@v0.1.0 anp-mcp
 ```
 
 **Claude Desktop** (or any MCP client using a JSON config, e.g. `claude_desktop_config.json`),
@@ -90,7 +90,7 @@ then restart the client:
   "mcpServers": {
     "anp-mcp": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/lorenamelos/anp-mcp", "anp-mcp"]
+      "args": ["--from", "git+https://github.com/lorenamelos/anp-mcp@v0.1.0", "anp-mcp"]
     }
   }
 }
