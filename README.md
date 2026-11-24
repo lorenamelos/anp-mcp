@@ -60,7 +60,8 @@ ANP raw files  ->  harmonisation pipeline  ->  open dataset (Hugging Face, versi
                      your AI assistant  <-  anp-mcp (DuckDB, runs on your machine)
 ```
 
-On first use the server downloads the two small files it needs from the
+On first use the server downloads the three small files it needs (`field_group_month.parquet`,
+`national_check.csv`, `field_groups.csv`) from the
 [dataset](https://huggingface.co/datasets/lorenamelos/anp-oil-production) and caches them;
 after that it works offline. It is pinned to one dataset version, so answers do not
 change silently when a new month is published. No database to install, no account
