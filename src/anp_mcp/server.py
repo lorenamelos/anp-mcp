@@ -134,7 +134,8 @@ def search_field_groups(text: str, limit: int = 10) -> dict:
 def field_group_production(field_group: str, start: str = "2024-01", end: str = "2026-12") -> dict:
     """Monthly petroleum production (bbl/d) and active wells of ONE field group.
 
-    Use search_field_groups first if unsure of the exact name. Months are YYYY-MM.
+    field_group must be the exact group name returned by search_field_groups (e.g. 'BÚZIOS',
+    not 'buzios'); any other spelling returns no months. Months are YYYY-MM.
     Petroleum = oil + condensate, daily rate averaged over the month.
     """
     con = connect()

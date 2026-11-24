@@ -45,7 +45,7 @@ arbitrary SQL.
 | Tool | What it answers |
 |---|---|
 | `search_field_groups` | Find a field by name (accent-insensitive): *"buzios"* → BÚZIOS |
-| `field_group_production` | Monthly production (bbl/d) and active wells of one field |
+| `field_group_production` | Monthly production (bbl/d) and active wells of one field group, by its exact name from `search_field_groups` |
 | `top_changes` | Fields that grew or declined the most over the last N months, with the method |
 | `national_reconciliation` | The trust check above: summary by default, every month on request |
 | `national_production` | Brazil's total petroleum production (bbl/d, onshore/offshore) from ANP's national series, by month or by year; incomplete years are flagged |

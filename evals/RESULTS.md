@@ -157,3 +157,6 @@ but they still mislead, and the grader is right to fail them.
 - A cheaper grader (e.g. Haiku), after an agreement test against the Sonnet grader on the
   same answers.
 - Run the evals through the Batch API (half the price; results arrive within 24 hours).
+- The docstrings of `national_reconciliation` and `field_group_production` (text the model
+  reads as tool descriptions) changed after server efd482e; the next eval round is a new
+  baseline, not comparable with the runs recorded above.
