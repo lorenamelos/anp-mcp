@@ -22,8 +22,10 @@ so you can simply ask:
 
 The sum of all wells reproduces ANP's official national production **within ±1% in
 every one of the 261 months** from January 2005 to September 2026 (worst month:
-+0.52%, March 2008). The server exposes this check as a tool, so the assistant can
-show it whenever it answers.
++0.52%, March 2008). The check covers the total only; the onshore/offshore split is not part
+of it and can differ more (onshore is off by more than 1% in 80 months, up to −6.6% in July
+2024; offshore stays within 1%). The server exposes this check as a tool, so the assistant
+can show it whenever it answers.
 
 ## Evals: does it answer correctly?
 

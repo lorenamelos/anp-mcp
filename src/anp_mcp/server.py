@@ -202,7 +202,7 @@ def top_changes(months: int = 6, n: int = 10, direction: str = "down") -> dict:
 def national_reconciliation(details: bool = False) -> dict:
     """Trust check: does the sum of all wells reproduce ANP's official national total?
 
-    Returns a summary (months compared, months outside +/-1%, worst month).
+    Returns a summary (months compared, months outside +/-1% on the national total, worst month).
     Set details=True to also get every month (long output; use only if needed).
     """
     con = connect()
